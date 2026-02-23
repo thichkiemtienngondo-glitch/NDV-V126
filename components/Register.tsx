@@ -21,9 +21,10 @@ import { compressImage } from '../utils';
 interface RegisterProps {
   onBack: () => void;
   onRegister: (userData: Partial<UserType>) => void;
+  error?: string | null;
 }
 
-const Register: React.FC<RegisterProps> = ({ onBack, onRegister }) => {
+const Register: React.FC<RegisterProps> = ({ onBack, onRegister, error }) => {
   const [formData, setFormData] = useState({
     fullName: '',
     idNumber: '',
@@ -139,6 +140,12 @@ const Register: React.FC<RegisterProps> = ({ onBack, onRegister }) => {
       </div>
 
       <form onSubmit={handleSubmit} className="w-full space-y-3">
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+            <AlertCircle className="text-red-500 shrink-0" size={20} />
+            <p className="text-red-500 text-xs font-bold uppercase tracking-tight">{error}</p>
+          </div>
+        )}
         <div className="relative">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
             <User size={18} />

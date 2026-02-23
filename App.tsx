@@ -61,6 +61,7 @@ const App: React.FC = () => {
   const [systemBudget, setSystemBudget] = useState<number>(30000000); 
   const [rankProfit, setRankProfit] = useState<number>(0); 
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
   const addNotification = (userId: string, title: string, message: string, type: 'LOAN' | 'RANK' | 'SYSTEM') => {
@@ -77,10 +78,28 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchData = async (retries = 3) => {
       try {
         const response = await fetch('/api/data');
-        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text();
+          console.error("Phản hồi không phải JSON:", text.slice(0, 100));
+          throw new Error("Server không trả về JSON");
+        }
+
+        const text = await response.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (parseError) {
+          console.error("Lỗi parse JSON. Nội dung phản hồi:", text.slice(0, 200));
+          throw new Error("Dữ liệu từ server không hợp lệ");
+        }
         
         if (data.notifications) setNotifications(data.notifications);
         if (data.users) setRegisteredUsers(data.users);
@@ -90,25 +109,37 @@ const App: React.FC = () => {
 
         const savedUser = localStorage.getItem('vnv_user');
         if (savedUser && savedUser !== 'null' && savedUser !== '') {
-          const parsedUser = JSON.parse(savedUser);
-          // Refresh user data from server
-          const freshUser = data.users.find((u: User) => u.id === parsedUser.id);
-          if (freshUser) {
-            setUser(freshUser);
-            if (currentView === AppView.LOGIN) {
-              setCurrentView(freshUser.isAdmin ? AppView.ADMIN_DASHBOARD : AppView.DASHBOARD);
+          try {
+            const parsedUser = JSON.parse(savedUser);
+            // Refresh user data from server
+            const freshUser = data.users.find((u: User) => u.id === parsedUser.id);
+            if (freshUser) {
+              setUser(freshUser);
+              if (currentView === AppView.LOGIN) {
+                setCurrentView(freshUser.isAdmin ? AppView.ADMIN_DASHBOARD : AppView.DASHBOARD);
+              }
+            } else if (parsedUser.isAdmin) {
+              setUser(parsedUser);
+              if (currentView === AppView.LOGIN) {
+                setCurrentView(AppView.ADMIN_DASHBOARD);
+              }
             }
-          } else if (parsedUser.isAdmin) {
-            setUser(parsedUser);
-            if (currentView === AppView.LOGIN) {
-              setCurrentView(AppView.ADMIN_DASHBOARD);
-            }
+          } catch (jsonError) {
+            console.warn("Lỗi parse vnv_user từ localStorage:", jsonError);
+            localStorage.removeItem('vnv_user');
           }
         }
-      } catch (e) {
-        console.error("Lỗi khi tải dữ liệu từ server:", e);
+      } catch (e: any) {
+        if (retries > 0) {
+          console.warn(`Thử lại tải dữ liệu... (${retries} lần còn lại). Lỗi: ${e.message}`);
+          setTimeout(() => fetchData(retries - 1), 2000);
+        } else {
+          console.error("Lỗi khi tải dữ liệu từ server sau nhiều lần thử:", e);
+        }
       } finally {
-        setIsInitialized(true);
+        if (retries === 0 || !isInitialized) {
+          setIsInitialized(true);
+        }
       }
     };
     fetchData();
@@ -307,6 +338,13 @@ const App: React.FC = () => {
   };
 
   const handleRegister = async (userData: Partial<User>) => {
+    setRegisterError(null);
+    const existingUser = registeredUsers.find(u => u.phone === userData.phone);
+    if (existingUser) {
+      setRegisterError("Số điện thoại này đã được đăng ký.");
+      return;
+    }
+
     const newUser: User = {
       id: Math.floor(1000 + Math.random() * 9000).toString(), 
       phone: userData.phone || '', fullName: userData.fullName || '',
@@ -315,7 +353,8 @@ const App: React.FC = () => {
       isLoggedIn: true, isAdmin: false,
       joinDate: new Date().toLocaleTimeString('vi-VN') + ' ' + new Date().toLocaleDateString('vi-VN'),
       idFront: userData.idFront, idBack: userData.idBack, refZalo: userData.refZalo, relationship: userData.relationship,
-      lastLoanSeq: 0
+      lastLoanSeq: 0,
+      updatedAt: Date.now()
     };
     setRegisteredUsers(prev => [...prev, newUser]);
     setUser(newUser);
@@ -357,7 +396,8 @@ const App: React.FC = () => {
       date: dueDate, 
       createdAt: now.toLocaleTimeString('vi-VN') + ' ' + now.toLocaleDateString('vi-VN'), 
       status: 'CHỜ DUYỆT', 
-      signature: signature
+      signature: signature,
+      updatedAt: Date.now()
     };
     
     setLoans(prev => [newLoan, ...prev]);
@@ -365,7 +405,8 @@ const App: React.FC = () => {
     const updatedUser = { 
       ...user, 
       balance: user.balance - amount,
-      lastLoanSeq: nextSeq
+      lastLoanSeq: nextSeq,
+      updatedAt: Date.now()
     };
     setUser(updatedUser);
     setRegisteredUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
@@ -373,14 +414,14 @@ const App: React.FC = () => {
 
   const handleUpgradeRank = (targetRank: UserRank, bill: string) => {
     if (!user) return;
-    const updatedUser = { ...user, pendingUpgradeRank: targetRank, rankUpgradeBill: bill };
+    const updatedUser = { ...user, pendingUpgradeRank: targetRank, rankUpgradeBill: bill, updatedAt: Date.now() };
     setUser(updatedUser);
     setRegisteredUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
   };
 
   const handleSettleLoan = (loanId: string, bill: string) => {
     setLoans(prev => prev.map(loan => {
-      if (loan.id === loanId) return { ...loan, status: 'CHỜ TẤT TOÁN', billImage: bill };
+      if (loan.id === loanId) return { ...loan, status: 'CHỜ TẤT TOÁN', billImage: bill, updatedAt: Date.now() };
       return loan;
     }));
   };
@@ -405,7 +446,7 @@ const App: React.FC = () => {
             // Hoàn lại hạn mức cho user nếu khoản vay bị từ chối (không phải từ chối bill tất toán)
             const loanUser = registeredUsers.find(u => u.id === loan.userId);
             if (loanUser) {
-              const updatedUser = { ...loanUser, balance: Math.min(loanUser.totalLimit, loanUser.balance + loan.amount) };
+              const updatedUser = { ...loanUser, balance: Math.min(loanUser.totalLimit, loanUser.balance + loan.amount), updatedAt: Date.now() };
               setRegisteredUsers(users => users.map(u => u.id === loan.userId ? updatedUser : u));
               if (user?.id === loan.userId) setUser(updatedUser);
             }
@@ -421,7 +462,7 @@ const App: React.FC = () => {
         if (action === 'SETTLE') {
           const loanUser = registeredUsers.find(u => u.id === loan.userId);
           if (loanUser) {
-             const updatedUser = { ...loanUser, balance: Math.min(loanUser.totalLimit, loanUser.balance + loan.amount), rankProgress: Math.min(10, loanUser.rankProgress + 1) };
+             const updatedUser = { ...loanUser, balance: Math.min(loanUser.totalLimit, loanUser.balance + loan.amount), rankProgress: Math.min(10, loanUser.rankProgress + 1), updatedAt: Date.now() };
              setRegisteredUsers(users => users.map(u => u.id === loan.userId ? updatedUser : u));
              if (user?.id === loan.userId) setUser(updatedUser);
           }
@@ -438,7 +479,7 @@ const App: React.FC = () => {
           addNotification(loan.userId, 'Yêu cầu bị từ chối', `Yêu cầu cho khoản vay ID ${loan.id} đã bị từ chối. Lý do: ${rejectionReason || 'Không xác định'}`, 'LOAN');
         }
 
-        return { ...loan, status: newStatus as any, rejectionReason };
+        return { ...loan, status: newStatus as any, rejectionReason, updatedAt: Date.now() };
       }
       return loan;
     }));
@@ -466,7 +507,8 @@ const App: React.FC = () => {
           totalLimit: newLimit, 
           balance: newLimit - (targetUser.totalLimit - targetUser.balance), 
           pendingUpgradeRank: null, 
-          rankUpgradeBill: undefined 
+          rankUpgradeBill: undefined,
+          updatedAt: Date.now()
         };
         
         setRegisteredUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
@@ -490,7 +532,7 @@ const App: React.FC = () => {
     // Trường hợp Từ chối hoặc không tìm thấy user
     setRegisteredUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        return { ...u, pendingUpgradeRank: null, rankUpgradeBill: undefined };
+        return { ...u, pendingUpgradeRank: null, rankUpgradeBill: undefined, updatedAt: Date.now() };
       }
       return u;
     }));
@@ -500,12 +542,17 @@ const App: React.FC = () => {
     setRankProfit(0);
   };
 
-  const handleDeleteUser = (userId: string) => {
-    setRegisteredUsers(prev => prev.filter(u => u.id !== userId));
-    setLoans(prev => prev.filter(l => l.userId !== userId));
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+      setRegisteredUsers(prev => prev.filter(u => u.id !== userId));
+      setLoans(prev => prev.filter(l => l.userId !== userId));
+    } catch (e) {
+      console.error("Lỗi khi xóa user:", e);
+    }
   };
 
-  const handleAutoCleanupUsers = () => {
+  const handleAutoCleanupUsers = async () => {
     const usersToDelete = registeredUsers.filter(u => {
       if (u.isAdmin) return false;
       const userLoans = loans.filter(l => l.userId === u.id);
@@ -514,7 +561,17 @@ const App: React.FC = () => {
       if (settled.length === 0) return false;
       return true; 
     });
+    
+    for (const u of usersToDelete) {
+      try {
+        await fetch(`/api/users/${u.id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error("Lỗi khi dọn dẹp user:", u.id, e);
+      }
+    }
+    
     setRegisteredUsers(prev => prev.filter(u => !usersToDelete.some(td => td.id === u.id)));
+    setLoans(prev => prev.filter(l => !usersToDelete.some(td => td.id === l.userId)));
     return usersToDelete.length;
   };
 
@@ -525,8 +582,8 @@ const App: React.FC = () => {
 
   const renderView = () => {
     switch (currentView) {
-      case AppView.LOGIN: return <Login onLogin={handleLogin} onNavigateRegister={() => setCurrentView(AppView.REGISTER)} error={loginError} />;
-      case AppView.REGISTER: return <Register onBack={() => setCurrentView(AppView.LOGIN)} onRegister={handleRegister} />;
+      case AppView.LOGIN: return <Login onLogin={handleLogin} onNavigateRegister={() => { setRegisterError(null); setCurrentView(AppView.REGISTER); }} error={loginError} />;
+      case AppView.REGISTER: return <Register onBack={() => setCurrentView(AppView.LOGIN)} onRegister={handleRegister} error={registerError} />;
       case AppView.DASHBOARD: 
         return (
           <Dashboard 
@@ -576,7 +633,7 @@ const App: React.FC = () => {
             onLogout={handleLogout} 
             onUpdateBank={(bankData) => {
               if (user) {
-                const updatedUser = { ...user, ...bankData };
+                const updatedUser = { ...user, ...bankData, updatedAt: Date.now() };
                 setUser(updatedUser);
                 setRegisteredUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
                 addNotification(user.id, 'Cập nhật tài khoản', 'Thông tin tài khoản nhận tiền của bạn đã được cập nhật.', 'SYSTEM');

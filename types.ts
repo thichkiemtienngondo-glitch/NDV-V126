@@ -41,6 +41,7 @@ export interface User {
   bankName?: string;
   bankAccountNumber?: string;
   bankAccountHolder?: string;
+  updatedAt?: number;
 }
 
 export interface Notification {
@@ -65,6 +66,7 @@ export interface LoanRecord {
   billImage?: string;
   signature?: string; // Lưu trữ DataURL của chữ ký
   rejectionReason?: string;
+  updatedAt?: number;
 }
 
 export interface AuthState {
