@@ -32,7 +32,9 @@ import {
   RefreshCcw,
   CheckCircle,
   XCircle,
-  Landmark
+  Landmark,
+  Copy,
+  Check
 } from 'lucide-react';
 import ContractModal from './ContractModal';
 
@@ -56,6 +58,13 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ users, loans,
   const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
   const [cleanupResultCount, setCleanupResultCount] = useState<number | null>(null);
   const [rejectingLoanId, setRejectingLoanId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const filteredUsers = users.filter(u => 
     u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -313,7 +322,15 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ users, loans,
                             </div>
                             <div className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
                               <span className="text-[8px] font-black text-gray-600 uppercase">Số tài khoản:</span>
-                              <span className="text-sm font-black text-blue-400 tracking-widest">{u.bankAccountNumber}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-black text-blue-400 tracking-widest">{u.bankAccountNumber}</span>
+                                <button 
+                                  onClick={() => handleCopy(u.bankAccountNumber || '', u.id)}
+                                  className={`p-2 rounded-lg transition-all ${copiedId === u.id ? 'bg-green-500/20 text-green-500' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                                >
+                                  {copiedId === u.id ? <Check size={12} /> : <Copy size={12} />}
+                                </button>
+                              </div>
                             </div>
                             <div className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
                               <span className="text-[8px] font-black text-gray-600 uppercase">Chủ tài khoản:</span>
