@@ -77,43 +77,45 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const initData = () => {
+    const fetchData = async () => {
       try {
+        const response = await fetch('/api/data');
+        const data = await response.json();
+        
+        if (data.notifications) setNotifications(data.notifications);
+        if (data.users) setRegisteredUsers(data.users);
+        if (data.loans) setLoans(data.loans);
+        if (data.budget !== undefined) setSystemBudget(data.budget);
+        if (data.rankProfit !== undefined) setRankProfit(data.rankProfit);
+
         const savedUser = localStorage.getItem('vnv_user');
-        const savedLoans = localStorage.getItem('vnv_loans');
-        const savedAllUsers = localStorage.getItem('vnv_registered_users');
-        const savedNotifications = localStorage.getItem('vnv_notifications');
-        const savedBudget = localStorage.getItem('vnv_budget');
-        const savedRankProfit = localStorage.getItem('vnv_rank_profit');
-        
-        if (savedNotifications) {
-          setNotifications(JSON.parse(savedNotifications));
-        }
-
-        if (savedAllUsers) {
-          setRegisteredUsers(JSON.parse(savedAllUsers));
-        }
-
-        if (savedLoans) {
-          setLoans(JSON.parse(savedLoans));
-        }
-        if (savedBudget) setSystemBudget(Number(savedBudget));
-        if (savedRankProfit) setRankProfit(Number(savedRankProfit));
-        
         if (savedUser && savedUser !== 'null' && savedUser !== '') {
           const parsedUser = JSON.parse(savedUser);
-          if (parsedUser && parsedUser.id) {
+          // Refresh user data from server
+          const freshUser = data.users.find((u: User) => u.id === parsedUser.id);
+          if (freshUser) {
+            setUser(freshUser);
+            if (currentView === AppView.LOGIN) {
+              setCurrentView(freshUser.isAdmin ? AppView.ADMIN_DASHBOARD : AppView.DASHBOARD);
+            }
+          } else if (parsedUser.isAdmin) {
             setUser(parsedUser);
-            setCurrentView(parsedUser.isAdmin ? AppView.ADMIN_DASHBOARD : AppView.DASHBOARD);
+            if (currentView === AppView.LOGIN) {
+              setCurrentView(AppView.ADMIN_DASHBOARD);
+            }
           }
         }
       } catch (e) {
-        console.warn("Dữ liệu LocalStorage trống.");
+        console.error("Lỗi khi tải dữ liệu từ server:", e);
       } finally {
         setIsInitialized(true);
       }
     };
-    initData();
+    fetchData();
+    
+    // Polling for updates every 10 seconds
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -240,34 +242,44 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!isInitialized) return;
-    const persist = () => {
+    const persist = async () => {
       localStorage.setItem('vnv_user', user ? JSON.stringify(user) : '');
       
-      // Smart Pruning: Giữ tất cả khoản vay đang hoạt động, chỉ xóa bớt lịch sử đã hoàn tất nếu quá nhiều
-      const userGroups: Record<string, LoanRecord[]> = {};
-      loans.forEach(loan => {
-        if (!userGroups[loan.userId]) userGroups[loan.userId] = [];
-        userGroups[loan.userId].push(loan);
-      });
-
-      const prunedLoans: LoanRecord[] = [];
-      Object.values(userGroups).forEach(userLoans => {
-        // Phân loại: Đang hoạt động vs Đã hoàn tất
-        const active = userLoans.filter(l => !['ĐÃ TẤT TOÁN', 'BỊ TỪ CHỐI'].includes(l.status));
-        const finished = userLoans.filter(l => ['ĐÃ TẤT TOÁN', 'BỊ TỪ CHỐI'].includes(l.status));
+      try {
+        await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(registeredUsers)
+        });
         
-        // Luôn giữ tất cả active, và tối đa 20 finished gần nhất
-        const kept = [...active, ...finished.slice(0, 20)];
-        prunedLoans.push(...kept);
-      });
-      
-      localStorage.setItem('vnv_loans', JSON.stringify(prunedLoans));
-      localStorage.setItem('vnv_registered_users', JSON.stringify(registeredUsers));
-      localStorage.setItem('vnv_notifications', JSON.stringify(notifications));
-      localStorage.setItem('vnv_budget', systemBudget.toString());
-      localStorage.setItem('vnv_rank_profit', rankProfit.toString());
+        await fetch('/api/loans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(loans)
+        });
+        
+        await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(notifications)
+        });
+        
+        await fetch('/api/budget', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ budget: systemBudget })
+        });
+        
+        await fetch('/api/rankProfit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rankProfit })
+        });
+      } catch (e) {
+        console.error("Lỗi khi lưu dữ liệu lên server:", e);
+      }
     };
-    const timer = setTimeout(persist, 1000);
+    const timer = setTimeout(persist, 2000);
     return () => clearTimeout(timer);
   }, [user, loans, registeredUsers, notifications, systemBudget, rankProfit, isInitialized]);
 
