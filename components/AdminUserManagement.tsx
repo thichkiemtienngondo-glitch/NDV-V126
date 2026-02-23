@@ -309,41 +309,6 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ users, loans,
                         <div className="space-y-1"><div className="flex items-center gap-2"><MapPin size={14} className="text-[#ff8c00]" /><p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Địa chỉ</p></div><p className="text-xs font-black text-white leading-tight line-clamp-2">{u.address || 'CHƯA CẬP NHẬT'}</p></div>
                       </div>
 
-                      <div className="bg-blue-500/5 border border-blue-500/10 rounded-[2rem] p-6 mx-2 space-y-4">
-                        <div className="flex items-center gap-3 text-blue-500">
-                          <Landmark size={18} />
-                          <h4 className="text-[10px] font-black uppercase tracking-widest">Tài khoản nhận tiền</h4>
-                        </div>
-                        {u.bankName ? (
-                          <div className="grid grid-cols-1 gap-3">
-                            <div className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
-                              <span className="text-[8px] font-black text-gray-600 uppercase">Ngân hàng:</span>
-                              <span className="text-[10px] font-black text-white uppercase">{u.bankName}</span>
-                            </div>
-                            <div className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
-                              <span className="text-[8px] font-black text-gray-600 uppercase">Số tài khoản:</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-black text-blue-400 tracking-widest">{u.bankAccountNumber}</span>
-                                <button 
-                                  onClick={() => handleCopy(u.bankAccountNumber || '', u.id)}
-                                  className={`p-2 rounded-lg transition-all ${copiedId === u.id ? 'bg-green-500/20 text-green-500' : 'bg-white/5 text-gray-500 hover:text-white'}`}
-                                >
-                                  {copiedId === u.id ? <Check size={12} /> : <Copy size={12} />}
-                                </button>
-                              </div>
-                            </div>
-                            <div className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5">
-                              <span className="text-[8px] font-black text-gray-600 uppercase">Chủ tài khoản:</span>
-                              <span className="text-[10px] font-black text-white uppercase">{u.bankAccountHolder}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="py-4 text-center">
-                            <p className="text-[10px] font-black text-gray-700 uppercase tracking-widest">Chưa cập nhật tài khoản</p>
-                          </div>
-                        )}
-                      </div>
-
                       <div className="space-y-6 px-2 pt-6 border-t border-white/5">
                         <div className="flex items-center gap-2 text-[#ff8c00]">
                           <Camera size={18} />
@@ -436,6 +401,41 @@ const AdminUserManagement: React.FC<AdminUserManagementProps> = ({ users, loans,
                                      <div className="aspect-video w-full bg-black rounded-xl overflow-hidden border border-white/5">
                                         {loan.billImage ? <img src={loan.billImage} className="w-full h-full object-cover" alt="Bill payment" /> : <div className="w-full h-full flex items-center justify-center"><Clock size={16} className="text-gray-800" /></div>}
                                      </div>
+                                  </div>
+                                )}
+
+                                {['CHỜ DUYỆT', 'ĐÃ DUYỆT'].includes(loan.status) && (
+                                  <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-4 space-y-3">
+                                    <div className="flex items-center gap-2 text-blue-500">
+                                      <Landmark size={14} />
+                                      <h4 className="text-[9px] font-black uppercase tracking-widest">Tài khoản nhận tiền</h4>
+                                    </div>
+                                    {u.bankName ? (
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-[7px] font-black text-gray-600 uppercase">Ngân hàng:</span>
+                                          <span className="text-[9px] font-black text-white uppercase">{u.bankName}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-[7px] font-black text-gray-600 uppercase">Số tài khoản:</span>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[11px] font-black text-blue-400 tracking-widest">{u.bankAccountNumber}</span>
+                                            <button 
+                                              onClick={() => handleCopy(u.bankAccountNumber || '', u.id + loan.id)}
+                                              className={`p-1.5 rounded-lg transition-all ${copiedId === u.id + loan.id ? 'bg-green-500/20 text-green-500' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                                            >
+                                              {copiedId === u.id + loan.id ? <Check size={10} /> : <Copy size={10} />}
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-[7px] font-black text-gray-600 uppercase">Chủ tài khoản:</span>
+                                          <span className="text-[9px] font-black text-white uppercase">{u.bankAccountHolder}</span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="text-[8px] font-black text-red-500 uppercase text-center">Khách chưa cập nhật tài khoản</p>
+                                    )}
                                   </div>
                                 )}
 

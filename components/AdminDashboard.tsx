@@ -42,11 +42,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, loans, registered
   });
 
   const profitFromFees = loans
-    .filter(l => ['ĐANG NỢ', 'ĐANG GIẢI NGÂN', 'CHỜ TẤT TOÁN', 'ĐÃ TẤT TOÁN'].includes(l.status))
+    .filter(l => l.status === 'ĐÃ TẤT TOÁN')
     .reduce((acc, curr) => acc + (curr.amount * 0.15), 0);
     
   const totalFines = loans
-    .filter(l => ['ĐANG NỢ', 'ĐANG GIẢI NGÂN', 'CHỜ TẤT TOÁN', 'ĐÃ TẤT TOÁN'].includes(l.status))
+    .filter(l => l.status === 'ĐÃ TẤT TOÁN')
     .reduce((acc, curr) => acc + (curr.fine || 0), 0);
     
   const totalProfit = profitFromFees + totalFines;

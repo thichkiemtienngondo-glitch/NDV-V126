@@ -112,6 +112,8 @@ const BankInfoModal: React.FC<BankInfoModalProps> = ({ user, onClose, onUpdate }
               </div>
               <input 
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={bankAccountNumber}
                 onChange={(e) => setBankAccountNumber(e.target.value.replace(/\D/g, ''))}
                 placeholder="Nhập số tài khoản..."
